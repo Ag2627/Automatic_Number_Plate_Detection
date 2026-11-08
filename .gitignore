@@ -2,8 +2,10 @@
 __pycache__/
 .pytest_cache/
 *.py[cod]
-data/
 *.mp4
 *.avi
 sample_outputs/
 visual_results/
+detection_results/
+.tmp/
+.pip-cache/

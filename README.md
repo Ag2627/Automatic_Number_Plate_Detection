@@ -1,173 +1,88 @@
-# ANPR Image Processing Module
+# Indian ANPR Detection and Image Processing
 
-This is a standalone image-processing module for an Indian ANPR system. It is independent of the plate detector and
-can be developed/tested on any team member's laptop.
+This repository combines a pretrained YOLO number-plate detector with an image
+processing module. The active detector localizes plates and returns bounding
+boxes and confidence scores. OCR and model training are not part of the current
+active workflow.
 
-## Features
+## Setup
 
-- Image I/O, BGR/RGB/grayscale/HSV/HSI-style conversions
-- Sampling, quantization, resizing, cropping, neighborhood and distance helpers
-- Translation, rotation, scaling, affine and perspective transformations
-- Histograms, histogram equalization, histogram matching, contrast stretching,
-  gamma correction and CLAHE
-- Gaussian and salt-and-pepper noise; motion and defocus blur
-- Arithmetic, geometric, harmonic, contra-harmonic, median, Gaussian,
-  directional and bilateral filters
-- Inverse, Wiener and homomorphic filtering
-- MSE, PSNR, SSIM and downstream detection-rate comparison helper
-- Command-line demo that creates a synthetic sample if no image is supplied
+Create and activate a virtual environment, then install the dependencies from
+the single requirements file:
 
-## 1. Setup
-
-Recommended: Python 3.10 or 3.11.
-
-```bash
+~~~powershell
 python -m venv .venv
-```
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+~~~
 
-Windows:
-```bash
-.venv\Scripts\activate
-```
+On Python installations where PyYAML cannot build its optional native
+extension, install with its pure-Python implementation:
 
-macOS/Linux:
-```bash
-source .venv/bin/activate
-```
+~~~powershell
+$env:PYYAML_FORCE_LIBYAML = "0"
+python -m pip install -r requirements.txt
+Remove-Item Env:PYYAML_FORCE_LIBYAML
+~~~
 
-Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+## YOLO plate detection
 
-## 2. Run the demo
+From the repository root, run:
 
-With your own vehicle image:
-```bash
-python run_demo.py --image path/to/vehicle.jpg --output-dir sample_outputs
-```
+~~~powershell
+python -m plate_detection --image "data\images\image1.jpg"
+~~~
 
-Without an image (creates a synthetic test image):
-```bash
-python run_demo.py --output-dir sample_outputs
-```
+The command prints each detected plate's pixel coordinates and confidence,
+saves a box-only image under detection_results/yolo/, and updates
+data/annotations/plate_boxes.csv. Running it again for the same image replaces
+that image's earlier CSV entries. The first run downloads the pretrained
+checkpoint into the Hugging Face cache.
 
-The demo saves enhancement, noise, filtering, restoration and histogram
-comparison images under `sample_outputs/`.
+The CSV contains model predictions. Manually verify boxes before using them as
+ground-truth annotations for accuracy evaluation.
 
-## 3. Import the module from plate detection module
+## Archived classical comparison
 
-Run from the repository root:
+A non-ML detector is preserved under archive/classical_plate_detection/. The
+standalone comparison runs Laplacian, Canny, and Sobel edge methods:
 
-```python
-import cv2
-from image_processing import preprocess_image, enhance_image
+~~~powershell
+python archive/classical_plate_detection/experiments/plate_detection_demo.py --image "data\images\image1.jpg"
+~~~
 
-image = cv2.imread("vehicle.jpg")  # OpenCV uses BGR
-processed = preprocess_image(image)
-clahe_image = enhance_image(image, method="clahe")
+It prints each method's top candidate coordinates and ranking score, then saves
+box-only images under detection_results/classical/. It does not update the
+YOLO annotation CSV. The ranking score is a heuristic, not a confidence
+probability.
 
-# plate detection module can choose original or processed input and compare detector results.
-```
+## Image processing
 
-### Stable handoff contract
+The image_processing/ module contains image conversion, geometric transforms,
+enhancement, noise, filtering, restoration, and image quality metrics. It can
+be used independently of plate detection.
 
-- Input: OpenCV NumPy image, normally `uint8`, BGR, shape `(H, W, 3)`.
-- `preprocess_image(image)` returns a BGR `uint8` image.
-- `enhance_image(image, method)` returns an image in the same channel format
-  as its input (for color images, enhancement is applied to luminance).
-- `restore_image(image, method, **kwargs)` returns a restored image.
-- Functions do not modify the caller's input array.
+Run the image-processing demo on an image:
 
-plate detection module should evaluate detection on both the original and selected processed
-images. Enhancement is optional: some operations can amplify noise or remove
-useful character edges.
+~~~powershell
+python run_demo.py --image "path\to\vehicle.jpg" --output-dir sample_outputs
+~~~
 
-## 4. Project structure
+Run the visual experiment suite:
 
-```text
-ANPR_ImageProcessing_Preprocessing/
-├── image_processing/
-│   ├── __init__.py
-│   ├── fundamentals.py
-│   ├── transforms.py
-│   ├── enhancement.py
-│   ├── noise.py
-│   ├── filters.py
-│   ├── restoration.py
-│   └── metrics.py
-├── experiments/
-│   └── run_experiments.py
-├── tests/
-│   └── test_image_processing.py
-├── sample_outputs/
-├── run_demo.py
-├── requirements.txt
-└── README.md
-```
+~~~powershell
+python experiments/visual_experiments.py --image "path\to\vehicle.jpg"
+~~~
 
-## 5. Important notes / limitations
+## Project layout
 
-- HSI is not a native OpenCV color space. `bgr_to_hsi()` provides an
-  HSI-style conversion for demonstration and returns H, S, I floating-point
-  arrays.
-- Inverse and Wiener filtering require an assumed/known point-spread function
-  (PSF). Results are meaningful mainly for controlled degradation examples.
-- Homomorphic filtering is an illumination-correction technique, not a
-  universal restoration method.
-- Constrained and unconstrained restoration are demonstrated through
-  regularized and unregularized frequency-domain inverse solutions. They
-  depend strongly on the assumed blur kernel and regularization parameter.
-- SSIM requires `scikit-image`.
-- MSE/PSNR/SSIM require a clean reference image. For real images without a
-  reference, compare downstream plate-detection performance instead.
-- This module does not detect number plates. It prepares images and provides
-  experiments for plate detection module.
+- plate_detection/: active YOLO detector and command-line runner
+- archive/classical_plate_detection/: preserved classical detector, demo, and tests
+- image_processing/: preprocessing and image analysis functions
+- data/images/: input images
+- data/annotations/plate_boxes.csv: predicted plate coordinates
+- detection_results/yolo/ and detection_results/classical/: generated boxed images
+- experiments/: image-processing experiment scripts
 
-## 6. Run tests
-
-```bash
-pytest -q
-```
-
-## 7. Suggested experiment protocol
-
-1. Keep a fixed set of vehicle images.
-2. Run detection on original images to establish a baseline.
-3. Apply one enhancement/filter at a time.
-4. Run the same detector with the same parameters on each variant.
-5. Record successful plate detections / total images, precision, recall and F1.
-6. Do not conclude that an image looks better means ANPR performance improved.
-7. Keep train/validation/test images fixed and avoid tuning on the test set.
-
-
-See `TESTING_GUIDE.md` for the full manual test matrix, expected outcomes, integration tests and acceptance criteria.
-
-
-## Visual experiments (recommended for project verification)
-
-Run with a real vehicle image:
-
-```bash
-python experiments/visual_experiments.py --image data/vehicle.jpg
-```
-
-Or run a smoke test without a real image:
-
-```bash
-python experiments/visual_experiments.py
-```
-
-The script creates a `visual_results/` folder containing comparison sheets for:
-1. Color models, grayscale, sampling, quantization and resizing
-2. Geometric transformations
-3. Histogram equalization, contrast stretching, gamma correction and CLAHE
-4. Noise and blur models
-5. Spatial filters on Gaussian noise
-6. Spatial filters on salt-and-pepper noise
-7. Restoration comparisons
-8. A metric report for controlled restoration experiments
-
-For project sign-off, repeat these experiments on a representative set of real
-vehicle images and inspect the output sheets. A single synthetic image is not
-sufficient evidence of ANPR performance.
+Generated detection results and virtual-environment files are ignored by Git.
+Input images and annotations under data/ are not ignored.
