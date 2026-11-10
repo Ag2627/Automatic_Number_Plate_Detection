@@ -186,7 +186,8 @@ def rectify_plate(crop):
 
     if lines is not None:
 
-        for line in lines[:, 0, :]:
+        # OpenCV can return either (N, 1, 4) or (N, 4) line arrays.
+        for line in np.asarray(lines).reshape(-1, 4):
 
             x1, y1, x2, y2 = map(
                 int, line

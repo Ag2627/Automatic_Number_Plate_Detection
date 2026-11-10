@@ -5,3 +5,4 @@ scikit-image>=0.21
 pytest>=7.4
 ultralytics>=8.3,<9
 huggingface_hub>=0.24
+easyocr>=1.7,<2
