@@ -7,5 +7,10 @@ __pycache__/
 sample_outputs/
 visual_results/
 detection_results/
+evaluation_results/
 .tmp/
 .pip-cache/
+# Python virtual environment
+.venv_ocr/
+venv/
+env/
